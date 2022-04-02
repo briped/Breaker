@@ -250,7 +250,14 @@ function Remove-BreakerAppointment {
     }
 }
 
-
+$BreakerMessages = @(
+    'Breaker One-Five.',
+    'Breakdance!',
+    'Timeout! Breaker disruption!',
+    'Time for a break!',
+    "Knock, knock! Who's there? Breaker! Breaker who? Breaker Taker!",
+    'Breakerfast time.'
+)
 
 $BreakerPath = 'Breaker - Take a Break'
 $BreakerName = 'No Time!'
