@@ -5,15 +5,15 @@
         [Parameter(Mandatory = $true, 
             ValueFromPipelineByPropertyName = $true)]
         [Alias('TaskFolder', 
-            'TaskPath')]
+            'Path')]
         [string]
-        $Path,
+        $TaskPath,
 
         [Parameter(Mandatory = $true, 
             ValueFromPipelineByPropertyName = $true)]
-        [Alias('TaskName')]
+        [Alias('Name')]
         [string]
-        $Name,
+        $TaskName,
 
         [Parameter(Mandatory = $false)]
         [ValidateSet('Monday', 
@@ -27,20 +27,61 @@
         $DaysOfWeek,
 
         [Parameter(Mandatory = $false)]
-        $TimeOfDay
+        $TimeOfDay,
+
+        [Parameter(Mandatory = $false)]
+        [int]
+        $ExpireAfter = 6
     )
 
     begin {
+        Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): begin"
+        if ($VerbosePreference) {
+            foreach ($Parameter in $MyInvocation.BoundParameters.GetEnumerator()) {
+                Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): param: $($Parameter.Key): $($Parameter.Value)"
+            }
+        }
+
+        # Verify that the path looks correct and capture the path without leading and trailing backslashes.
+        if ($TaskPath -match '^\\?(?<Path>([^\\/:*?"<>|]+)(\\[^\\/:*?"<>|]+)*)\\?$') {
+            # Re-create the path with exactly one leading and trailing backslash.
+            $TaskPath = '\' + $Matches.Path + '\'
+            Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): Real TaskPath: '$($TaskPath)'..."
+        }
+
+        # Ensure that the name does not contain invalid characters.
+        $TaskName = $TaskName -replace '[\\/:*?"<>|]+', '_'
+        Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): Real TaskName: '$($TaskName)'..."
+
+        $TaskDescription = 'Breaker - Take a Break!'
         $Executable = 'rundll32.exe'
         $Arguments  = @('user32.dll,LockWorkStation')
+        $DeleteExpiredTaskAfter = New-TimeSpan -Seconds 0
+        $ExecutionTimeLimit = New-TimeSpan -Minutes 1
+        $EndBoundary = (Get-Date).AddMonths($ExpireAfter).Date.ToString('u').Replace(' ', 'T')
     }
 
     process {
+        try {
+            Write-Verbose -Message "Trying to get information for task '$($TaskPath + $TaskName)'."
+            $TaskInfo = Get-ScheduledTaskInfo -TaskName $($TaskPath + $TaskName) -ErrorAction SilentlyContinue
+        }
+        catch {
+            throw "Could not get information for task '$($TaskPath + $TaskName)'. Error: $($PSItem)"
+        }
+        if ($TaskInfo) {
+            throw "The task '$($TaskInfo.TaskName)' already exists."
+        }
         $Action   = New-ScheduledTaskAction -Execute $Executable -Argument $($Arguments -join ' ')
         $Trigger  = New-ScheduledTaskTrigger -Weekly -DaysOfWeek $DaysOfWeek -At $TimeOfDay
-        $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -DeleteExpiredTaskAfter $(New-TimeSpan -Seconds 0) -ExecutionTimeLimit $(New-TimeSpan -Minutes 5) -MultipleInstances IgnoreNew
-        $Task     = New-ScheduledTask -Description '' -Action $Action -Trigger $Trigger -Settings $Settings
-        Register-ScheduledTask -TaskPath $Path -TaskName $Name -InputObject $Task
+        $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -DeleteExpiredTaskAfter $DeleteExpiredTaskAfter -ExecutionTimeLimit $ExecutionTimeLimit -MultipleInstances IgnoreNew
+        $Task     = New-ScheduledTask -Description $TaskDescription -Action $Action -Trigger $Trigger -Settings $Settings
+        # Add some additional settings to the trigger(s).
+        $Task.Triggers | ForEach-Object {
+            $PSItem.EndBoundary = $EndBoundary
+            $PSItem.ExecutionTimeLimit = 'PT30S' # 30 seconds
+        }
+        $Task | Register-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName
     }
 
     end {
@@ -54,45 +95,50 @@ function Get-BreakerTask {
         [Parameter(Mandatory = $true, 
             ValueFromPipelineByPropertyName = $true)]
         [Alias('TaskFolder', 
-            'TaskPath')]
+            'Path')]
         [string]
-        $Path,
+        $TaskPath,
 
         [Parameter(Mandatory = $false, 
             ValueFromPipelineByPropertyName = $true)]
-        [Alias('TaskName')]
+        [Alias('Name')]
         [string]
-        $Name
+        $TaskName
     )
 
     begin {
+        Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): begin"
+        if ($VerbosePreference) {
+            foreach ($Parameter in $MyInvocation.BoundParameters.GetEnumerator()) {
+                Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): param: $($Parameter.Key): $($Parameter.Value)"
+            }
+        }
     }
 
     process {
-        Write-Verbose -Message "Path: '$($Path)'... Name: '$($Name)'..."
-        if ($Path -match '^\\?(?<Path>([^\\/:*?"<>|]*)(\\[^\\/:*?"<>|]*)*)\\?$') {
-            $Path = '\' + $Matches.Path + '\'
-            Write-Verbose -Message "Sanitized Path: '$($Path)'..."
+        if ($TaskPath -match '^\\?(?<Path>([^\\/:*?"<>|]+)(\\[^\\/:*?"<>|]+)*)\\?$') {
+            $TaskPath = '\' + $Matches.Path + '\'
+            Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): Real TaskPath: '$($TaskPath)'..."
         }
 
-        if ($Name) {
+        if ($TaskName) {
             try {
-                Write-Verbose -Message "Trying to get task '$($Name)' from path '$($Path)'."
-                $Result = Get-ScheduledTask -TaskPath $Path -TaskName $Name
-                Write-Verbose -Message "Task: $($Result.TaskName)"
+                Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): Trying to get task '$($TaskName)' from path '$($TaskPath)'."
+                $Result = Get-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName
+                Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): Task: '$($Result.TaskName)'."
             }
             catch {
-                throw "Error trying to get task '$($Name)' from path '$($Path)'. Error: $($PSItem)"
+                throw "Error trying to get task '$($TaskName)' from path '$($TaskPath)'. Error: $($PSItem)"
             }
         }
         else {
             try {
-                Write-Verbose -Message "Trying to get all tasks from path '$($Path)'."
-                $Result = Get-ScheduledTask -TaskPath $Path -ErrorAction Stop
-                Write-Verbose -Message "Tasks: $($Result.TaskName)"
+                Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): Trying to get all tasks from path '$($TaskPath)'."
+                $Result = Get-ScheduledTask -TaskPath $TaskPath -ErrorAction Stop
+                Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): Task: '$($Result.TaskName)'."
             }
             catch {
-                throw "Error trying to get tasks from path '$($Path)'. Error: $($PSItem)"
+                throw "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): Error trying to get tasks from path '$($TaskPath)'. Error: $($PSItem)"
             }
         }
 
@@ -103,7 +149,6 @@ function Get-BreakerTask {
     }
 }
 
-
 function Remove-BreakerTask {
     param(
         [CmdletBinding(SupportsShouldProcess = $true, 
@@ -112,19 +157,25 @@ function Remove-BreakerTask {
         [Parameter(Mandatory = $true, 
             ValueFromPipelineByPropertyName = $true)]
         [Alias('TaskFolder', 
-            'TaskPath')]
+            'Path')]
         [string]
-        $Path,
+        $TaskPath,
 
         [Parameter(Mandatory = $false, 
             ValueFromPipelineByPropertyName = $true)]
-        [Alias('TaskName')]
+        [Alias('Name')]
         [string]
-        $Name
+        $TaskName
     )
 
     begin {
-        Write-Verbose -Message "Path: '$($Path)'. Name: '$($Name)'."
+        Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): begin"
+        if ($VerbosePreference) {
+            foreach ($Parameter in $MyInvocation.BoundParameters.GetEnumerator()) {
+                Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): param: $($Parameter.Key): $($Parameter.Value)"
+            }
+        }
+
         $ScheduleService = New-Object -ComObject Schedule.Service
         if (!$ScheduleService.Connected) {
             $ScheduleService.Connect()
@@ -132,28 +183,31 @@ function Remove-BreakerTask {
     }
 
     process {
-        Write-Verbose -Message "Path: '$($Path)'. Name: '$($Name)'."
-        $Path = "\$($Path)"
-        if ($Path -like "*\$($Name)") {
-            Write-Verbose -Message "Fixing piped path: '$($Path)'."
-            $Path = Split-Path -Path $Path -Parent
+        Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): TaskPath: $($TaskPath)"
+        # Verify that the path looks correct and capture the path without leading and trailing backslashes.
+        if ($TaskPath -match '^\\?(?<Path>([^\\/:*?"<>|]+)(\\[^\\/:*?"<>|]+)*)\\?$') {
+            $TaskPath = '\' + $Matches.Path
+            Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): Real TaskPath: $($TaskPath)"
         }
-        $Path = $Path -replace '\+', '\'
 
-        if ($Name) {
-            Write-Verbose -Message "Deleting task: $($Path)\$($Name)"
-            $ScheduleService.GetFolder($Path).DeleteTask($Name, $null)
+        # Ensure that the name does not contain invalid characters.
+        $TaskName = $TaskName -replace '[\\/:*?"<>|]+', '_'
+        Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): Real TaskName: $($TaskName)"
+
+        if ($TaskName) {
+            Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): Deleting task: $($TaskPath)$($TaskName)"
+            $ScheduleService.GetFolder($TaskPath).DeleteTask($TaskName, $null)
         }
         else {
-            $ScheduleService.GetFolder($Path).GetTasks($null) | ForEach-Object {
-                Write-Verbose -Message "Deleting task: $($Path)\$($PSItem.Name)"
-                $ScheduleService.GetFolder($Path).DeleteTask($PSItem.Name, $null)
+            $ScheduleService.GetFolder($TaskPath).GetTasks($null) | ForEach-Object {
+                Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): Deleting task: $($TaskPath)$($PSItem.Name)"
+                $ScheduleService.GetFolder($TaskPath).DeleteTask($PSItem.Name, $null)
             }
         }
 
-        if (!$ScheduleService.GetFolder($Path).GetTasks($null).Count) {
-            Write-Verbose -Message "Deleting Folder: $($Path)"
-            $ScheduleService.GetFolder('\').DeleteFolder($Path, $null)
+        if (!$ScheduleService.GetFolder($TaskPath).GetTasks($null).Count) {
+            Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): Deleting Folder: $($TaskPath)"
+            $ScheduleService.GetFolder('\').DeleteFolder($TaskPath, $null)
         }
     }
 
@@ -176,11 +230,11 @@ function New-BreakerAppointment {
 
         [Parameter(Mandatory = $false)]
         [datetime]
-        $MeetingStart =(Get-Date),
+        $Start =(Get-Date),
 
         [Parameter(Mandatory = $false)]
         [int]
-        $MeetingDuration = 15,
+        $Duration = 15,
 
         [Parameter(Mandatory = $false)]
         [string]
@@ -196,8 +250,17 @@ function New-BreakerAppointment {
     )
 
     begin {
+        Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): begin"
+        if ($VerbosePreference) {
+            foreach ($Parameter in $MyInvocation.BoundParameters.GetEnumerator()) {
+                Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): param: $($Parameter.Key): $($Parameter.Value)"
+            }
+        }
+
         $OutlookApplication = New-Object -ComObject 'Outlook.Application'
         $AppointmentItem    = $OutlookApplication.CreateItem('olAppointmentItem')
+        $PatternEndDate = (Get-Date).AddMonths(6).Date
+
     }
 
     process {
@@ -206,13 +269,16 @@ function New-BreakerAppointment {
         $AppointmentItem.Location  = $Location
         $AppointmentItem.ReminderSet = $EnableReminder
 	    $AppointmentItem.ReminderMinutesBeforeStart = $Reminder
-	    $AppointmentItem.Start = $MeetingStart
-	    $AppointmentItem.Duration = $MeetingDuration
+	    $AppointmentItem.Start = $Start
+	    $AppointmentItem.Duration = $Duration
+
+        $RecurrencePattern = $AppointmentItem.GetRecurrencePattern()
+        $RecurrencePattern.PatternEndDate = $PatternEndDate
     }
 
     end {
         $AppointmentItem.Save()
-        $AppointmentItem.Display($true)
+        #$AppointmentItem.Display($true)
         [System.Runtime.InteropServices.Marshal]::ReleaseComObject($OutlookApplication) | Out-Null
     }
 }
@@ -228,6 +294,13 @@ function Get-BreakerAppointment {
     )
 
     begin {
+        Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): begin"
+        if ($VerbosePreference) {
+            foreach ($Parameter in $MyInvocation.BoundParameters.GetEnumerator()) {
+                Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): param: $($Parameter.Key): $($Parameter.Value)"
+            }
+        }
+
         $OutlookApplication = New-Object -ComObject Outlook.Application
         $OutlookNamespace   = $OutlookApplication.GetNamespace('MAPI')
         $OutlookCalendar    = $OutlookNamespace.GetDefaultFolder([Microsoft.Office.Interop.Outlook.OlDefaultFolders]::olFolderCalendar)
@@ -255,6 +328,13 @@ function Remove-BreakerAppointment {
     )
 
     begin {
+        Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): begin"
+        if ($VerbosePreference) {
+            foreach ($Parameter in $MyInvocation.BoundParameters.GetEnumerator()) {
+                Write-Verbose -Message "$($MyInvocation.MyCommand.CommandType) $($MyInvocation.MyCommand.Name): param: $($Parameter.Key): $($Parameter.Value)"
+            }
+        }
+
         $OutlookApplication = New-Object -ComObject Outlook.Application
         $OutlookNamespace   = $OutlookApplication.GetNamespace('MAPI')
         $OutlookCalendar    = $OutlookNamespace.GetDefaultFolder([Microsoft.Office.Interop.Outlook.OlDefaultFolders]::olFolderCalendar)
@@ -270,91 +350,34 @@ function Remove-BreakerAppointment {
     }
 }
 
+# Variables for easy testing
+$BreakerPath = 'Breaker - Take a Break'
+
 $BreakerMessages = @(
     'Breaker One-Five.',
     'Breakdance!',
     'Timeout! Breaker disruption!',
     'Time for a break!',
-    "Knock, knock! Who's there? Soory can't answer, taking a break.",
+    "Knock, knock! Who's there? Sorry can't answer, taking a break.",
     'Breakerfast time.'
 )
+$BreakerName = $BreakerMessages | Get-Random
+$WeekDays = @('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')
+$DaysOfWeek = $WeekDays | Get-Random -Count (Get-Random -Minimum 1 -Maximum 7)
+$QuarterHours = @(0, 15, 30, 45)
+$Hour = Get-Random -Minimum 0 -Maximum 23
+$Minute = $QuarterHours | Get-Random
+$TimeOfDay = "$($Hour):$($Minute)"
 
-$BreakerPath = 'Breaker - Take a Break'
-#$BreakerMessages | Get-Random
 
-#New-BreakerAppointment -Subject $BreakerName
-#Get-BreakerAppointment
-#Remove-BreakerAppointment
 
-#New-BreakerTask -DaysOfWeek Monday -TimeOfDay '13:00' -Path $BreakerPath -Name $($BreakerMessages | Get-Random)
-[xml]$TaskXml = (Get-BreakerTask -Path $BreakerPath -Name 'Timeout! Breaker disruption!').Xml
-Get-BreakerTask -Path $BreakerPath -Name 'Timeout! Breaker disruption!'
-<#
-Name               : Timeout! Breaker disruption!
-Path               : \Breaker - Take a Break\Timeout! Breaker disruption!
+#New-BreakerAppointment -Verbose -Subject $BreakerName
+#Get-BreakerAppointment -Verbose | Remove-BreakerAppointment -Verbose
 
-State              : 3
-Enabled            : True
-LastRunTime        : 30/11/1999 00.00.00
-LastTaskResult     : 267011
-NumberOfMissedRuns : 0
-NextRunTime        : 04/04/2022 13.00.00
-Definition         : System.__ComObject
-
-Xml                : <?xml version="1.0" encoding="UTF-16"?>
-                     <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-                       <RegistrationInfo>
-                         <Author>DAREDEVIL\briped</Author>
-                         <URI>\Breaker - Take a Break\Timeout! Breaker disruption!</URI>
-                       </RegistrationInfo>
-                       <Principals>
-                         <Principal id="Author">
-                           <UserId>S-1-5-21-572002506-2244596241-3529022954-1001</UserId>
-                           <LogonType>InteractiveToken</LogonType>
-                         </Principal>
-                       </Principals>
-                       <Settings>
-
-                         <DeleteExpiredTaskAfter>PT0S</DeleteExpiredTaskAfter>
-                         <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
-                         <StopIfGoingOnBatteries>true</StopIfGoingOnBatteries>
-                         <ExecutionTimeLimit>PT1H</ExecutionTimeLimit>
-                         <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
-                         <IdleSettings>
-                           <StopOnIdleEnd>true</StopOnIdleEnd>
-                           <RestartOnIdle>false</RestartOnIdle>
-                         </IdleSettings>
-                       </Settings>
-                       <Triggers>
-                         <CalendarTrigger>
-
-                           <StartBoundary>2022-04-02T13:00:00+02:00</StartBoundary>
-
-                           <EndBoundary>2022-05-01T17:00:00</EndBoundary>
-
-                           <ExecutionTimeLimit>PT30M</ExecutionTimeLimit>
-
-                           <ScheduleByWeek>
-                             <WeeksInterval>1</WeeksInterval>
-                             <DaysOfWeek>
-
-                               <Monday />
-                               <Tuesday />
-                               <Wednesday />
-                               <Thursday />
-                               <Friday />
-
-                             </DaysOfWeek>
-                           </ScheduleByWeek>
-                         </CalendarTrigger>
-                       </Triggers>
-                       <Actions Context="Author">
-                         <Exec>
-                           <Command>rundll32.exe</Command>
-                           <Arguments>user32.dll,LockWorkStation</Arguments>
-                         </Exec>
-                       </Actions>
-                     </Task>
-#>
-
-#Remove-BreakerTask -Path $BreakerPath -Verbose
+#New-BreakerTask -Verbose -DaysOfWeek $DaysOfWeek -TimeOfDay $TimeOfDay -TaskPath $BreakerPath -Name $BreakerName
+#Get-BreakerTask -Verbose -TaskPath $BreakerPath -TaskName $BreakerName
+#Get-BreakerTask -Verbose -TaskPath $BreakerPath
+#Get-BreakerTask -Verbose -TaskPath $BreakerPath -TaskName $BreakerName | Remove-BreakerTask -Verbose
+#Get-BreakerTask -Verbose -TaskPath $BreakerPath | Remove-BreakerTask -Verbose
+#Remove-BreakerTask -Verbose -TaskPath $BreakerPath -TaskName $BreakerName
+#Remove-BreakerTask -Verbose -TaskPath $BreakerPath
