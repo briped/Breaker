@@ -136,6 +136,9 @@ function Get-BreakerTask {
     
     .NOTES
     TODO:
+    * Add conversion for converting DaysOfWeek bitmask to human readable format.
+      https://docs.microsoft.com/en-us/windows/win32/taskschd/weeklytrigger-daysofweek
+      https://stackoverflow.com/questions/29684103/convert-weeklytrigger-daysofweek-to-list-of-dayofweek
     * Documentation
     #>
     param(
