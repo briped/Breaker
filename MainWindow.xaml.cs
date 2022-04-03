@@ -22,7 +22,6 @@ namespace Breaker
     {
         public MainWindow()
         {
-            InitializeComponent();
         }
     }
 }
