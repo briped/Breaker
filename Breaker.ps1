@@ -36,12 +36,15 @@
     }
 
     process {
-        $Action  = New-ScheduledTaskAction -Execute $Executable -Argument $($Arguments -join ' ')
-        $Trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek $DaysOfWeek -At $TimeOfDay
-        Register-ScheduledTask -Action $Action -Trigger $Trigger -TaskPath $Path -TaskName $Name
+        $Action   = New-ScheduledTaskAction -Execute $Executable -Argument $($Arguments -join ' ')
+        $Trigger  = New-ScheduledTaskTrigger -Weekly -DaysOfWeek $DaysOfWeek -At $TimeOfDay
+        $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -DeleteExpiredTaskAfter $(New-TimeSpan -Seconds 0) -ExecutionTimeLimit $(New-TimeSpan -Minutes 5) -MultipleInstances IgnoreNew
+        $Task     = New-ScheduledTask -Description '' -Action $Action -Trigger $Trigger -Settings $Settings
+        Register-ScheduledTask -TaskPath $Path -TaskName $Name -InputObject $Task
     }
 
-    end {}
+    end {
+    }
 }
 
 function Get-BreakerTask {
@@ -52,34 +55,51 @@ function Get-BreakerTask {
             ValueFromPipelineByPropertyName = $true)]
         [Alias('TaskFolder', 
             'TaskPath')]
-        [string[]]
+        [string]
         $Path,
 
         [Parameter(Mandatory = $false, 
             ValueFromPipelineByPropertyName = $true)]
         [Alias('TaskName')]
-        [string[]]
+        [string]
         $Name
     )
 
     begin {
-        $ScheduleService = New-Object -ComObject Schedule.Service
-        if (!$ScheduleService.Connected) {
-            $ScheduleService.Connect()
-        }
     }
 
     process {
+        Write-Verbose -Message "Path: '$($Path)'... Name: '$($Name)'..."
+        if ($Path -match '^\\?(?<Path>([^\\/:*?"<>|]*)(\\[^\\/:*?"<>|]*)*)\\?$') {
+            $Path = '\' + $Matches.Path + '\'
+            Write-Verbose -Message "Sanitized Path: '$($Path)'..."
+        }
+
         if ($Name) {
-            $ScheduleService.GetFolder("\$($Path)").GetTask($Name)
+            try {
+                Write-Verbose -Message "Trying to get task '$($Name)' from path '$($Path)'."
+                $Result = Get-ScheduledTask -TaskPath $Path -TaskName $Name
+                Write-Verbose -Message "Task: $($Result.TaskName)"
+            }
+            catch {
+                throw "Error trying to get task '$($Name)' from path '$($Path)'. Error: $($PSItem)"
+            }
         }
         else {
-            $ScheduleService.GetFolder("\$($Path)").GetTasks($null)
+            try {
+                Write-Verbose -Message "Trying to get all tasks from path '$($Path)'."
+                $Result = Get-ScheduledTask -TaskPath $Path -ErrorAction Stop
+                Write-Verbose -Message "Tasks: $($Result.TaskName)"
+            }
+            catch {
+                throw "Error trying to get tasks from path '$($Path)'. Error: $($PSItem)"
+            }
         }
+
+        return $Result
     }
 
     end {
-        [System.Runtime.InteropServices.Marshal]::ReleaseComObject($ScheduleService) | Out-Null
     }
 }
 
@@ -255,15 +275,86 @@ $BreakerMessages = @(
     'Breakdance!',
     'Timeout! Breaker disruption!',
     'Time for a break!',
-    "Knock, knock! Who's there? Breaker! Breaker who? Breaker Taker!",
+    "Knock, knock! Who's there? Soory can't answer, taking a break.",
     'Breakerfast time.'
 )
 
 $BreakerPath = 'Breaker - Take a Break'
-$BreakerName = 'No Time!'
+#$BreakerMessages | Get-Random
 
 #New-BreakerAppointment -Subject $BreakerName
-#Get-BreakerAppointment | Remove-BreakerAppointment
-#New-BreakerTask -DaysOfWeek Monday -TimeOfDay '13:00' -Path $BreakerPath -Name $BreakerName
-#Get-BreakerTask -Path $BreakerPath | Remove-BreakerTask -Verbose
+#Get-BreakerAppointment
+#Remove-BreakerAppointment
+
+#New-BreakerTask -DaysOfWeek Monday -TimeOfDay '13:00' -Path $BreakerPath -Name $($BreakerMessages | Get-Random)
+[xml]$TaskXml = (Get-BreakerTask -Path $BreakerPath -Name 'Timeout! Breaker disruption!').Xml
+Get-BreakerTask -Path $BreakerPath -Name 'Timeout! Breaker disruption!'
+<#
+Name               : Timeout! Breaker disruption!
+Path               : \Breaker - Take a Break\Timeout! Breaker disruption!
+
+State              : 3
+Enabled            : True
+LastRunTime        : 30/11/1999 00.00.00
+LastTaskResult     : 267011
+NumberOfMissedRuns : 0
+NextRunTime        : 04/04/2022 13.00.00
+Definition         : System.__ComObject
+
+Xml                : <?xml version="1.0" encoding="UTF-16"?>
+                     <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+                       <RegistrationInfo>
+                         <Author>DAREDEVIL\briped</Author>
+                         <URI>\Breaker - Take a Break\Timeout! Breaker disruption!</URI>
+                       </RegistrationInfo>
+                       <Principals>
+                         <Principal id="Author">
+                           <UserId>S-1-5-21-572002506-2244596241-3529022954-1001</UserId>
+                           <LogonType>InteractiveToken</LogonType>
+                         </Principal>
+                       </Principals>
+                       <Settings>
+
+                         <DeleteExpiredTaskAfter>PT0S</DeleteExpiredTaskAfter>
+                         <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+                         <StopIfGoingOnBatteries>true</StopIfGoingOnBatteries>
+                         <ExecutionTimeLimit>PT1H</ExecutionTimeLimit>
+                         <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+                         <IdleSettings>
+                           <StopOnIdleEnd>true</StopOnIdleEnd>
+                           <RestartOnIdle>false</RestartOnIdle>
+                         </IdleSettings>
+                       </Settings>
+                       <Triggers>
+                         <CalendarTrigger>
+
+                           <StartBoundary>2022-04-02T13:00:00+02:00</StartBoundary>
+
+                           <EndBoundary>2022-05-01T17:00:00</EndBoundary>
+
+                           <ExecutionTimeLimit>PT30M</ExecutionTimeLimit>
+
+                           <ScheduleByWeek>
+                             <WeeksInterval>1</WeeksInterval>
+                             <DaysOfWeek>
+
+                               <Monday />
+                               <Tuesday />
+                               <Wednesday />
+                               <Thursday />
+                               <Friday />
+
+                             </DaysOfWeek>
+                           </ScheduleByWeek>
+                         </CalendarTrigger>
+                       </Triggers>
+                       <Actions Context="Author">
+                         <Exec>
+                           <Command>rundll32.exe</Command>
+                           <Arguments>user32.dll,LockWorkStation</Arguments>
+                         </Exec>
+                       </Actions>
+                     </Task>
+#>
+
 #Remove-BreakerTask -Path $BreakerPath -Verbose

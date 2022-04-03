@@ -1,9 +1,0 @@
-C:\Users\briped\OneDrive\Documents\Github\Repositories\Breaker\Breaker\obj\Debug\net6.0-windows\Breaker.csproj.AssemblyReference.cache
-C:\Users\briped\OneDrive\Documents\Github\Repositories\Breaker\Breaker\obj\Debug\net6.0-windows\MainWindow.baml
-C:\Users\briped\OneDrive\Documents\Github\Repositories\Breaker\Breaker\obj\Debug\net6.0-windows\App.g.cs
-C:\Users\briped\OneDrive\Documents\Github\Repositories\Breaker\Breaker\obj\Debug\net6.0-windows\Breaker_MarkupCompile.cache
-C:\Users\briped\OneDrive\Documents\Github\Repositories\Breaker\Breaker\obj\Debug\net6.0-windows\Breaker.g.resources
-C:\Users\briped\OneDrive\Documents\Github\Repositories\Breaker\Breaker\obj\Debug\net6.0-windows\Breaker.GeneratedMSBuildEditorConfig.editorconfig
-C:\Users\briped\OneDrive\Documents\Github\Repositories\Breaker\Breaker\obj\Debug\net6.0-windows\Breaker.AssemblyInfoInputs.cache
-C:\Users\briped\OneDrive\Documents\Github\Repositories\Breaker\Breaker\obj\Debug\net6.0-windows\Breaker.AssemblyInfo.cs
-C:\Users\briped\OneDrive\Documents\Github\Repositories\Breaker\Breaker\obj\Debug\net6.0-windows\Breaker.csproj.CoreCompileInputs.cache
