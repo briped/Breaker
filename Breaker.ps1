@@ -1,4 +1,33 @@
 ﻿function New-BreakerTask {
+    <#
+    .SYNOPSIS
+    Short description
+    
+    .DESCRIPTION
+    Long description
+    
+    .PARAMETER TaskPath
+    Parameter description
+    
+    .PARAMETER TaskName
+    Parameter description
+    
+    .PARAMETER DaysOfWeek
+    Parameter description
+    
+    .PARAMETER TimeOfDay
+    Parameter description
+    
+    .PARAMETER ExpireAfter
+    Parameter description
+    
+    .EXAMPLE
+    An example
+    
+    .NOTES
+    TODO:
+    * Documentation.
+    #>
     param(
         [CmdletBinding(SupportsShouldProcess = $true)]
 
@@ -89,6 +118,26 @@
 }
 
 function Get-BreakerTask {
+    <#
+    .SYNOPSIS
+    Short description
+    
+    .DESCRIPTION
+    Long description
+    
+    .PARAMETER TaskPath
+    Parameter description
+    
+    .PARAMETER TaskName
+    Parameter description
+    
+    .EXAMPLE
+    An example
+    
+    .NOTES
+    TODO:
+    * Documentation
+    #>
     param(
         [CmdletBinding(SupportsShouldProcess = $true)]
 
@@ -150,6 +199,26 @@ function Get-BreakerTask {
 }
 
 function Remove-BreakerTask {
+    <#
+    .SYNOPSIS
+    Short description
+    
+    .DESCRIPTION
+    Long description
+    
+    .PARAMETER TaskPath
+    Parameter description
+    
+    .PARAMETER TaskName
+    Parameter description
+    
+    .EXAMPLE
+    An example
+    
+    .NOTES
+    TODO:
+    * Documentation
+    #>
     param(
         [CmdletBinding(SupportsShouldProcess = $true, 
             ConfirmImpact = 'High')]
@@ -217,6 +286,42 @@ function Remove-BreakerTask {
 }
 
 function New-BreakerAppointment {
+    <#
+    .SYNOPSIS
+    Short description
+    
+    .DESCRIPTION
+    Long description
+    
+    .PARAMETER Subject
+    Parameter description
+    
+    .PARAMETER Body
+    Parameter description
+    
+    .PARAMETER Start
+    Parameter description
+    
+    .PARAMETER Duration
+    Parameter description
+    
+    .PARAMETER Location
+    Parameter description
+    
+    .PARAMETER EnableReminder
+    Parameter description
+    
+    .PARAMETER Reminder
+    Parameter description
+    
+    .EXAMPLE
+    An example
+    
+    .NOTES
+    TODO:
+    * Add handling of the remaining parameters.
+    * Documentation
+    #>
     param (
         [CmdletBinding(SupportsShouldProcess = $true)]
 
@@ -284,6 +389,24 @@ function New-BreakerAppointment {
 }
 
 function Get-BreakerAppointment {
+    <#
+    .SYNOPSIS
+    Short description
+    
+    .DESCRIPTION
+    Long description
+    
+    .PARAMETER EntryID
+    Parameter description
+    
+    .EXAMPLE
+    An example
+    
+    .NOTES
+    TODO:
+    * Add handing of parameter(s)
+    * Documentation
+    #>
     param(
         [CmdletBinding()]
 
@@ -317,6 +440,23 @@ function Get-BreakerAppointment {
 }
 
 function Remove-BreakerAppointment {
+    <#
+    .SYNOPSIS
+    Short description
+    
+    .DESCRIPTION
+    Long description
+    
+    .PARAMETER EntryID
+    Parameter description
+    
+    .EXAMPLE
+    An example
+    
+    .NOTES
+    TODO:
+    * Documentation
+    #>
     param(
         [CmdletBinding(SupportsShouldProcess = $true, 
             ConfirmImpact = 'High')]
@@ -352,7 +492,6 @@ function Remove-BreakerAppointment {
 
 # Variables for easy testing
 $BreakerPath = 'Breaker - Take a Break'
-
 $BreakerMessages = @(
     'Breaker One-Five.',
     'Breakdance!',
@@ -369,11 +508,8 @@ $Hour = Get-Random -Minimum 0 -Maximum 23
 $Minute = $QuarterHours | Get-Random
 $TimeOfDay = "$($Hour):$($Minute)"
 
-
-
 #New-BreakerAppointment -Verbose -Subject $BreakerName
 #Get-BreakerAppointment -Verbose | Remove-BreakerAppointment -Verbose
-
 #New-BreakerTask -Verbose -DaysOfWeek $DaysOfWeek -TimeOfDay $TimeOfDay -TaskPath $BreakerPath -Name $BreakerName
 #Get-BreakerTask -Verbose -TaskPath $BreakerPath -TaskName $BreakerName
 #Get-BreakerTask -Verbose -TaskPath $BreakerPath
